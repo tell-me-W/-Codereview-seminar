@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>코드 스멜: 리팩토링이 필요한 신호를 읽는 법</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --surface: #f4f5f7;
+      --surface-2: #eef2f7;
+      --line: #e0e3e8;
+      --ink: #333333;
+      --muted: #666666;
+      --navy: #1e3a5f;
+      --navy-2: #2c5282;
+      --gold: #c8a45c;
+      --danger: #9d3e45;
+      --success: #376f54;
+      --code: #1e2736;
+      --shadow: 0 22px 60px rgba(30, 58, 95, 0.13);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      overflow: hidden;
+      color: var(--ink);
+      background:
+        linear-gradient(135deg, rgba(30, 58, 95, 0.08), transparent 34%),
+        linear-gradient(315deg, rgba(200, 164, 92, 0.11), transparent 32%),
+        #dfe5ec;
+      font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .deck {
+      position: relative;
+      top: 50%;
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
+      margin: auto;
+      border: 1px solid rgba(30, 58, 95, 0.12);
+      overflow: hidden;
+      background: var(--bg);
+      box-shadow: var(--shadow);
+      transform: translateY(-50%);
+    }
+
+    .deck::before {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(30, 58, 95, 0.045) 1px, transparent 1px),
+        linear-gradient(rgba(30, 58, 95, 0.035) 1px, transparent 1px);
+      background-size: 72px 72px;
+      content: "";
+      pointer-events: none;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      padding: clamp(36px, 5vw, 72px);
+      overflow-y: auto;
+      opacity: 0;
+      pointer-events: none;
+      text-align: left;
+      transition: opacity 0.3s ease;
+    }
+
+    .slide.active {
+      z-index: 2;
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .slide.active .a {
+      opacity: 0;
+      animation: fadeInUp 0.4s ease forwards;
+    }
+
+    .a:nth-child(1) { animation-delay: 0.05s; }
+    .a:nth-child(2) { animation-delay: 0.1s; }
+    .a:nth-child(3) { animation-delay: 0.15s; }
+    .a:nth-child(4) { animation-delay: 0.2s; }
+    .a:nth-child(5) { animation-delay: 0.25s; }
+    .a:nth-child(6) { animation-delay: 0.3s; }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 1100px;
+      margin-bottom: 22px;
+      color: var(--navy);
+      font-size: clamp(40px, 5vw, 68px);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin-bottom: 18px;
+      color: var(--navy);
+      font-size: clamp(28px, 3.1vw, 44px);
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin-bottom: 10px;
+      color: var(--navy);
+      font-size: clamp(17px, 1.45vw, 24px);
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    p,
+    li {
+      color: var(--ink);
+      font-size: clamp(16px, 1.45vw, 24px);
+      line-height: 1.5;
+    }
+
+    strong {
+      color: var(--navy);
+    }
+
+    ul,
+    ol {
+      margin: 10px 0 0;
+      padding-left: 1.2em;
+    }
+
+    li + li {
+      margin-top: 8px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--navy);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .eyebrow::before {
+      width: 42px;
+      height: 3px;
+      background: var(--gold);
+      content: "";
+    }
+
+    .lead {
+      max-width: 980px;
+      color: var(--muted);
+      font-size: clamp(20px, 2vw, 30px);
+    }
+
+    .meta,
+    .caption,
+    .hint {
+      color: var(--muted);
+      font-size: clamp(13px, 1vw, 16px);
+    }
+
+    .title-grid,
+    .two-col,
+    .compare,
+    .split-code,
+    .grid,
+    .five-grid,
+    .flow,
+    .signal-row,
+    .priority-grid {
+      display: grid;
+      width: 100%;
+      gap: clamp(14px, 1.7vw, 24px);
+    }
+
+    .title-grid {
+      grid-template-columns: minmax(0, 1.28fr) minmax(280px, 0.72fr);
+      align-items: end;
+    }
+
+    .two-col,
+    .compare,
+    .split-code {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .five-grid {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .flow {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .signal-row {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .priority-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(260px, 0.78fr);
+      align-items: stretch;
+    }
+
+    .card,
+    .panel,
+    .step,
+    .signal,
+    .quote,
+    .bucket,
+    .code-card,
+    .list-panel {
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--navy);
+      background: rgba(244, 245, 247, 0.94);
+      padding: clamp(16px, 1.6vw, 24px);
+    }
+
+    .gold {
+      border-top-color: var(--gold) !important;
+    }
+
+    .danger-card {
+      border-top-color: var(--danger) !important;
+    }
+
+    .success-card {
+      border-top-color: var(--success) !important;
+    }
+
+    .card p,
+    .panel p,
+    .step p,
+    .signal p,
+    .bucket p {
+      margin-bottom: 0;
+    }
+
+    .agenda {
+      display: grid;
+      width: 100%;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 28px;
+      padding: 0;
+      list-style: none;
+    }
+
+    .agenda li {
+      display: flex;
+      gap: 16px;
+      border-bottom: 1px solid var(--line);
+      padding: 13px 0;
+    }
+
+    .num,
+    .agenda b {
+      color: var(--gold);
+      font-family: "JetBrains Mono", Consolas, monospace;
+      font-size: 18px;
+    }
+
+    .tag {
+      display: inline-flex;
+      border: 1px solid rgba(30, 58, 95, 0.18);
+      background: rgba(30, 58, 95, 0.07);
+      padding: 6px 11px;
+      color: var(--navy);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .title-slide::after,
+    .section::after {
+      position: absolute;
+      right: clamp(36px, 5vw, 72px);
+      bottom: clamp(36px, 5vw, 72px);
+      width: min(26vw, 300px);
+      height: min(26vw, 300px);
+      border: 1px solid rgba(30, 58, 95, 0.16);
+      background:
+        linear-gradient(135deg, rgba(30, 58, 95, 0.12), transparent 60%),
+        radial-gradient(circle at 70% 25%, rgba(200, 164, 92, 0.35), transparent 34%);
+      content: "";
+    }
+
+    .section .chapter {
+      color: rgba(30, 58, 95, 0.11);
+      font-size: clamp(92px, 13vw, 190px);
+      font-weight: 800;
+      line-height: 0.8;
+    }
+
+    .quote {
+      max-width: 1120px;
+      border-top-width: 1px;
+      border-left: 8px solid var(--gold);
+      padding: clamp(22px, 2.5vw, 38px);
+    }
+
+    .quote p {
+      margin-bottom: 8px;
+      color: var(--navy);
+      font-size: clamp(26px, 2.7vw, 44px);
+      line-height: 1.2;
+    }
+
+    .bucket {
+      min-height: 206px;
+    }
+
+    .bucket b {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--gold);
+      font-size: clamp(22px, 2vw, 36px);
+      line-height: 1.02;
+    }
+
+    .bucket span,
+    .signal span {
+      display: block;
+      color: var(--muted);
+      font-size: clamp(13px, 1vw, 16px);
+      line-height: 1.4;
+    }
+
+    .signal {
+      min-height: 176px;
+    }
+
+    .signal b {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--navy);
+      font-size: clamp(24px, 2.3vw, 42px);
+      line-height: 1;
+    }
+
+    .step {
+      position: relative;
+      min-height: 196px;
+    }
+
+    .step:not(:last-child)::after {
+      position: absolute;
+      top: 50%;
+      right: -20px;
+      width: 20px;
+      color: var(--gold);
+      content: ">";
+      font-family: "JetBrains Mono", Consolas, monospace;
+      font-size: 24px;
+      transform: translateY(-50%);
+    }
+
+    .smell-map {
+      display: grid;
+      width: 100%;
+      grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+      gap: clamp(16px, 2vw, 28px);
+      align-items: stretch;
+    }
+
+    .smell-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .smell-stack div {
+      border-left: 6px solid var(--gold);
+      background: var(--surface);
+      padding: 12px 16px;
+      color: var(--navy);
+      font-size: clamp(15px, 1.25vw, 20px);
+      font-weight: 700;
+    }
+
+    .compare-bar {
+      display: grid;
+      width: 100%;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .compare-bar div {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.84);
+      padding: 14px;
+      color: var(--navy);
+      font-size: clamp(14px, 1.1vw, 18px);
+      text-align: center;
+    }
+
+    .call-chain {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .call-chain span {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      padding: 14px 16px;
+      color: var(--navy);
+      font-family: "JetBrains Mono", Consolas, monospace;
+      font-size: clamp(15px, 1.25vw, 20px);
+    }
+
+    .call-chain b {
+      color: var(--gold);
+      font-size: 24px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: rgba(255, 255, 255, 0.84);
+      font-size: clamp(14px, 1.12vw, 19px);
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line);
+      padding: 13px 14px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--navy);
+      background: var(--surface-2);
+    }
+
+    .code-card {
+      overflow: hidden;
+      background: var(--code);
+      border-top-color: var(--gold);
+      padding: 0;
+    }
+
+    .code-label {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 18px;
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.74);
+      font-family: "JetBrains Mono", Consolas, monospace;
+      font-size: 13px;
+    }
+
+    pre[class*="language-"] {
+      width: 100%;
+      max-height: 510px;
+      margin: 0;
+      border: 0;
+      border-top: 4px solid var(--gold);
+      border-radius: 0;
+      background: var(--code);
+      padding: clamp(16px, 1.6vw, 24px);
+      font-size: clamp(12px, 1vw, 16px);
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+
+    code[class*="language-"] {
+      font-family: "JetBrains Mono", Consolas, monospace;
+    }
+
+    .checklist {
+      display: grid;
+      width: 100%;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      padding: 0;
+      list-style: none;
+    }
+
+    .checklist li {
+      min-height: 88px;
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--gold);
+      background: rgba(255, 255, 255, 0.88);
+      padding: 16px 18px;
+      color: var(--ink);
+    }
+
+    .controls {
+      position: fixed;
+      right: 22px;
+      bottom: 18px;
+      z-index: 120;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .controls button {
+      width: 38px;
+      height: 38px;
+      border: 1px solid rgba(30, 58, 95, 0.18);
+      background: rgba(255, 255, 255, 0.88);
+      color: var(--navy);
+      cursor: pointer;
+    }
+
+    .progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 100;
+      height: 3px;
+      background: var(--gold);
+      transition: width 0.3s ease;
+    }
+
+    .counter {
+      position: fixed;
+      right: 82px;
+      bottom: 29px;
+      z-index: 100;
+      color: rgba(30, 58, 95, 0.58);
+      font-family: "JetBrains Mono", Consolas, monospace;
+      font-size: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .slide {
+        padding: 28px;
+      }
+
+      .title-grid,
+      .two-col,
+      .compare,
+      .split-code,
+      .grid,
+      .five-grid,
+      .flow,
+      .signal-row,
+      .priority-grid,
+      .agenda,
+      .smell-map,
+      .checklist {
+        grid-template-columns: 1fr;
+      }
+
+      .bucket,
+      .signal,
+      .step {
+        min-height: 0;
+      }
+
+      .step:not(:last-child)::after {
+        display: none;
+      }
+
+      .title-slide::after,
+      .section::after {
+        opacity: 0.35;
+      }
+    }
+
+    @media print {
+      body {
+        overflow: visible;
+        background: #ffffff;
+      }
+
+      .deck {
+        top: 0;
+        width: 100vw;
+        height: 100vh;
+        border: 0;
+        overflow: visible;
+        box-shadow: none;
+        transform: none;
+      }
+
+      .progress,
+      .counter,
+      .controls {
+        display: none !important;
+      }
+
+      .slide {
+        position: relative !important;
+        display: flex !important;
+        width: 100vw;
+        height: 100vh;
+        opacity: 1 !important;
+        page-break-after: always;
+      }
+
+      @page {
+        size: landscape;
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck">
+    <section class="slide active" data-notes="[1 min] 코드 스멜은 새 규칙을 외우는 세션이 아니라 리팩토링이 필요한 신호를 읽는 세션입니다. 이전 테스트, SOLID, 디자인 패턴 세션을 실제 레거시 관찰로 연결합니다.">
+      <div class="title-grid">
+        <div>
+          <span class="eyebrow a">Code Quality Seminar 05</span>
+          <h1 class="a">코드 스멜</h1>
+          <p class="lead a">리팩토링이 필요한 신호를 읽는 법</p>
+          <p class="meta a">Legacy Code · Review Language · Small Refactoring</p>
+        </div>
+        <div class="panel a">
+          <span class="tag">Smell = Signal</span>
+          <h3>오늘의 질문</h3>
+          <p>문제의 이름을 붙이면 어디부터 고칠지 더 선명해진다.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-notes="[45 sec] 오늘 흐름을 먼저 보여줍니다. 카탈로그를 다 읽는 대신 실제 리뷰와 레거시 리팩토링에서 먼저 볼 신호를 중심으로 진행합니다.">
+      <span class="eyebrow a">Agenda</span>
+      <h2 class="a">스멜을 발견하고 질문으로 바꾸기</h2>
+      <ol class="agenda a">
+        <li><b>01</b><span>왜 지금 코드 스멜인가</span></li>
+        <li><b>02</b><span>신호와 판정의 차이</span></li>
+        <li><b>03</b><span>다섯 분류 한눈에 보기</span></li>
+        <li><b>04</b><span>레거시 우선 관찰 지점</span></li>
+        <li><b>05</b><span>스멜별 질문과 예시</span></li>
+        <li><b>06</b><span>리뷰 체크리스트</span></li>
+      </ol>
+    </section>
+
+    <section class="slide" data-notes="[50 sec] 지금까지는 안전망과 개선 도구를 봤습니다. 코드 스멜은 그 도구를 언제 꺼낼지 알려주는 관찰 언어입니다.">
+      <span class="eyebrow a">Series Map</span>
+      <h2 class="a">테스트 다음, 설계 원칙 다음</h2>
+      <div class="flow a">
+        <div class="step success-card">
+          <span class="num">01</span>
+          <h3>Test</h3>
+          <p>동작을 보호한다.</p>
+        </div>
+        <div class="step gold">
+          <span class="num">02</span>
+          <h3>Smell</h3>
+          <p>문제 신호를 읽는다.</p>
+        </div>
+        <div class="step">
+          <span class="num">03</span>
+          <h3>Refactor</h3>
+          <p>원인에 맞는 도구를 고른다.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-notes="[1 min] Fowler가 강조한 핵심입니다. 스멜은 빨리 보이는 신호이고 실제 문제가 있는지는 더 들여다봐야 합니다.">
+      <span class="eyebrow a">Guardrail</span>
+      <h2 class="a">스멜은 판정이 아니라 질문</h2>
+      <div class="quote a">
+        <p>긴 메서드가 보이면 멈춰 본다.<br>하지만 길다는 이유만으로 바로 자르지는 않는다.</p>
+      </div>
+	  <br>
+      <div class="signal-row a">
+        <div class="signal gold"><b>Spot</b><span>눈에 띄는 구조</span><p>어디가 불편한가?</p></div>
+        <div class="signal"><b>Ask</b><span>변경 이유</span><p>왜 같이 바뀌는가?</p></div>
+        <div class="signal"><b>Protect</b><span>안전망</span><p>어떤 테스트가 필요한가?</p></div>
+        <div class="signal success-card"><b>Move</b><span>작은 개선</span><p>무엇부터 분리할까?</p></div>
+      </div>
+    </section>
+
+    <section class="slide" data-notes="[55 sec] Code-Smells 원문과 Refactoring.Guru가 사용하는 다섯 분류를 지도처럼 보여줍니다. 이름보다 관찰 포인트를 기억하면 됩니다.">
+      <span class="eyebrow a">Catalog</span>
+      <h2 class="a">다섯 분류가 보는 문제</h2>
+      <div class="five-grid a">
+        <div class="bucket gold"><b>Bloaters</b><p>너무 커진 코드</p><span>Long Method<br>Large Class</span></div>
+        <div class="bucket"><b>OO Abusers</b><p>어색한 객체 구조</p><span>Switch<br>Refused Bequest</span></div>
+        <div class="bucket"><b>Change Preventers</b><p>번지는 변경</p><span>Shotgun Surgery</span></div>
+        <div class="bucket"><b>Dispensables</b><p>줄일 수 있는 부담</p><span>Comments<br>Dead Code</span></div>
+        <div class="bucket"><b>Couplers</b><p>깊은 결합</p><span>Feature Envy<br>Message Chains</span></div>
+      </div>
+    </section>
+
+    <section class="slide" data-notes="[55 sec] 모든 스멜을 같은 무게로 보지 않습니다. 우리 레거시에서는 자주 바뀌고 테스트가 어려운 지점부터 보는 것이 실용적입니다.">
+      <span class="eyebrow a">Legacy Priority</span>
+      <h2 class="a">우리 코드에서 먼저 볼 신호</h2>
+      <div class="smell-map a">
+        <div class="smell-stack">
+          <div>God Class + Long Method</div>
+          <div>Shotgun Surgery</div>
+          <div>Feature Envy</div>
+          <div>Message Chains</div>
+          <div>테스트 준비 비용</div>
+        </div>
+        <div class="panel gold">
+          <h3>우선순위 기준</h3>
+          <ul>
+            <li>자주 바뀌는가</li>
+            <li>장애 경로인가</li>
+            <li>수정 파일이 퍼지는가</li>
+            <li>외부 의존성이 핵심 로직에 남는가</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-notes="[25 sec] 첫 분류는 코드가 너무 커져서 생기는 신호입니다. 레거시에서 가장 먼저 눈에 들어오는 경우가 많습니다.">
+      <span class="chapter a">01</span>
+      <h2 class="a">Bloaters<br>너무 커져서 다루기 어려운 코드</h2>
+      <p class="lead a">크기 자체보다 책임과 변경 이유가 함께 부풀었는지 본다.</p>
+    </section>
+
+    <section class="slide" data-notes="[1 min] Long Method와 Large Class를 God Class 관점에서 봅니다. 수신부터 응답까지 한 곳에 있으면 길이와 책임이 같이 커집니다.">
+      <span class="eyebrow a">Bloaters</span>
+      <h2 class="a">긴 메서드는 흐름을 숨긴다</h2>
+      <div class="split-code a">
+        <div class="code-card">
+          <div class="code-label"><span>Before.java</span><span>Long Method</span></div>
+          <pre class="language-java"><code class="language-java">public void onMessage(TibrvMsg msg) {
+    validateHeader(msg);
+    loadAccount(msg);
+    calculateTrade(msg);
+    saveTrade(msg);
+    publishResult(msg);
+    writeAuditLog(msg);
+}</code></pre>
+        </div>
+        <div class="list-panel gold">
+          <h3>질문</h3>
+          <ul>
+            <li>메서드 이름 하나로 책임이 설명되는가?</li>
+            <li>핵심 계산만 테스트하기 쉬운가?</li>
+            <li>메시지 필드 규칙이 곳곳에 퍼졌는가?</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-notes="[55 sec] Bloaters 안에서도 값의 의미가 원시 타입에 묻히는 문제를 함께 봅니다. 값 묶음이 반복되면 파라미터 객체나 값 객체 후보입니다.">
+      <span class="eyebrow a">Bloaters</span>
+      <h2 class="a">작은 값들이 책임을 숨길 때</h2>
+      <table class="a">
+        <thead>
+          <tr><th>스멜</th><th>보이는 모습</th><th>질문</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Primitive Obsession</td><td>`String accountNo`, `int amount`</td><td>검증 규칙이 여러 곳에 퍼졌는가?</td></tr>
+          <tr><td>Long Parameter List</td><td>메서드 호출이 값 나열처럼 보임</td><td>항상 같이 움직이는 값이 있는가?</td></tr>
+          <tr><td>Data Clumps</td><td>같은 식별 정보 묶음 반복</td><td>묶음 자체에 이름이 필요한가?</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="slide" data-notes="[1 min] switch 자체가 죄는 아닙니다. 같은 메시지 타입 분기가 여러 위치에서 자라면 변경 지점이 퍼진다는 점을 보여줍니다.">
+      <span class="eyebrow a">Switch Statements</span>
+      <h2 class="a">조건 분기는 어디서 자라고 있나</h2>
+      <div class="split-code a">
+        <div class="code-card">
+          <div class="code-label"><span>Before.java</span><span>repeated branch</span></div>
+          <pre class="language-java"><code class="language-java">if (type == ORDER) {
+    order(msg);
+} else if (type == CANCEL) {
+    cancel(msg);
+} else if (type == MODIFY) {
+    modify(msg);
+}</code></pre>
+        </div>
+        <div class="panel success-card">
+          <h3>확인할 축</h3>
+          <ul>
+            <li>새 타입이 계속 추가되는가?</li>
+            <li>분기 규칙이 여러 메서드에 복제되는가?</li>
+            <li>핸들러, 전략, 다형성 중 무엇이 실제로 범위를 줄이는가?</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-notes="[45 sec] temporary field, refused bequest, alternative classes는 한 장 표로 묶습니다. 공통점은 객체의 사용 계약이 어색하다는 것입니다.">
+      <span class="eyebrow a">OO Abusers</span>
+      <h2 class="a">객체의 사용 계약이 흔들리는 신호</h2>
+      <div class="grid a">
+        <div class="card gold"><h3>Temporary Field</h3><p>특정 호출 순서에서만 의미 있는 필드</p></div>
+        <div class="card danger-card"><h3>Refused Bequest</h3><p>상속했지만 일부 기능은 거부</p></div>
+        <div class="card"><h3>Alternative Classes</h3><p>같은 역할인데 호출법이 다름</p></div>
+      </div>
+    </section>
+
+    <section class="slide" data-notes="[25 sec] 세 번째는 변경 비용을 직접 보여주는 분류입니다. 리뷰에서도 대화가 잘 열리는 부분입니다.">
+      <span class="chapter a">03</span>
+      <h2 class="a">Change Preventers<br>변경이 여러 방향으로 번질 때</h2>
+      <p class="lead a">한 클래스가 여러 이유로 바뀌는가, 한 요구가 여러 클래스를 바꾸는가.</p>
+    </section>
+
+    <section class="slide" data-notes="[1 min] Divergent Change와 Shotgun Surgery를 구분합니다. 하나의 클래스가 여러 이유로 바뀌는지, 하나의 이유가 여러 클래스를 바꾸는지 방향이 다릅니다.">
+      <span class="eyebrow a">Change Preventers</span>
+      <h2 class="a">방향이 다른 두 변경 냄새</h2>
+      <div class="compare a">
+        <div class="card gold">
+          <h3>Divergent Change</h3>
+          <p>한 클래스가 여러 이유로 바뀐다.</p>
+          <div class="compare-bar">
+            <div>표시</div>
+            <div>저장</div>
+            <div>정책</div>
+          </div>
+        </div>
+        <div class="card danger-card">
+          <h3>Shotgun Surgery</h3>
+          <p>한 정책 변경이 여러 파일로 튄다.</p>
+          <div class="compare-bar">
+            <div>Service</div>
+            <div>DAO</div>
+            <div>Validator</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-notes="[45 sec] Parallel inheritance까지 포함해 변경 예방 관점에서 마무리합니다. 새 하위 타입을 두 계층에 동시에 추가한다면 독립 확장이 아닌 결합일 수 있습니다.">
+      <span class="eyebrow a">Change Preventers</span>
+      <h2 class="a">변경 전파를 추적하라</h2>
+      <div class="priority-grid a">
+        <div class="panel">
+          <h3>리뷰에서 묻기</h3>
+          <ul>
+            <li>이번 요구사항으로 어떤 파일이 같이 바뀌었나?</li>
+            <li>변경 이유별 책임이 모여 있나?</li>
+            <li>상속 계층 두 개가 항상 함께 늘어나나?</li>
+          </ul>
+        </div>
+        <div class="card gold">
+          <h3>작은 시작</h3>
+          <p>반복 수정되는 규칙 하나를 계산기나 정책 객체로 모은다.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-notes="[1 min] Comments와 Data Class의 뉘앙스를 강조합니다. 경계 DTO와 업무 배경 주석은 무조건 제거 대상이 아닙니다.">
+      <span class="eyebrow a">Nuance</span>
+      <h2 class="a">스멜을 규칙으로 오해하지 않기</h2>
+      <table class="a">
+        <thead>
+          <tr><th>항목</th><th>의심할 때</th><th>남겨도 되는 자리</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Comments</td><td>코드가 못 설명한 동작을 장문으로 보충</td><td>업무 배경, 위험한 제약, 외부 계약</td></tr>
+          <tr><td>Data Class</td><td>도메인 행동이 서비스로만 몰림</td><td>DTO, 메시지 모델, API 경계</td></tr>
+          <tr><td>Duplicate Code</td><td>같은 변경 이유를 공유</td><td>지금만 닮았고 변화 방향이 다름</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="slide" data-notes="[45 sec] Dead Code와 Speculative Generality는 버전 관리가 있는 팀일수록 과감히 줄일 수 있습니다. 남겨둔 가능성이 현재 독자를 속일 수 있습니다.">
+      <span class="eyebrow a">Dispensables</span>
+      <h2 class="a">지금 독자를 속이는 코드</h2>
+      <div class="grid a">
+        <div class="card danger-card"><h3>Dead Code</h3><p>불릴 것처럼 보이지만 더는 쓰이지 않음</p></div>
+        <div class="card"><h3>Lazy Class</h3><p>의미 있는 책임보다 파일 이동 비용이 큼</p></div>
+        <div class="card gold"><h3>Speculative Generality</h3><p>아직 없는 미래를 위한 추상화</p></div>
+      </div>
+    </section>
+
+    <section class="slide" data-notes="[25 sec] 마지막 분류는 결합도입니다. 우리 메시지 기반 레거시와 특히 잘 맞습니다.">
+      <span class="chapter a">05</span>
+      <h2 class="a">Couplers<br>깊이 엮인 구조를 읽기</h2>
+      <p class="lead a">상대 객체의 내부를 너무 많이 알거나, 위임만 남은 층이 늘어나지 않았는가.</p>
+    </section>
+
+    <section class="slide" data-notes="[1 min] Message Chains와 Feature Envy를 메시지 처리 문맥으로 보여줍니다. 필요한 의미를 경계에서 내부 모델로 바꾸면 핵심 로직이 원시 메시지를 덜 압니다.">
+      <span class="eyebrow a">Couplers</span>
+      <h2 class="a">메시지 체인이 핵심 로직까지 들어올 때</h2>
+      <div class="call-chain a">
+        <span>msg</span><b>></b><span>field("ORDER")</span><b>></b><span>account()</span><b>></b><span>grade()</span>
+      </div>
+      <div class="split-code a" style="margin-top: 18px;">
+        <div class="code-card">
+          <div class="code-label"><span>Boundary.java</span><span>before</span></div>
+          <pre class="language-java"><code class="language-java">public void process(TibrvMsg msg) {
+    validate(msg);
+    calculate(msg);
+    save(msg);
+    notify(msg);
+}</code></pre>
+        </div>
+        <div class="code-card">
+          <div class="code-label"><span>Boundary.java</span><span>after</span></div>
+          <pre class="language-java"><code class="language-java">OrderRequest request =
+        orderRequestMapper.from(msg);
+
+orderProcessor.process(request);</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-notes="[50 sec] Couplers의 나머지 신호를 비교합니다. 데이터를 가진 곳보다 남의 데이터를 더 만지면 Feature Envy, 아무 판단 없이 넘기기만 하면 Middle Man을 의심합니다.">
+      <span class="eyebrow a">Couplers</span>
+      <h2 class="a">결합이 깊은가, 위임이 비었는가</h2>
+      <div class="grid a">
+        <div class="card gold"><h3>Feature Envy</h3><p>남의 데이터를 더 많이 만지는 메서드</p></div>
+        <div class="card danger-card"><h3>Inappropriate Intimacy</h3><p>상대 내부 구현까지 아는 클래스</p></div>
+        <div class="card"><h3>Middle Man</h3><p>의미 없이 전달만 하는 층</p></div>
+      </div>
+    </section>
+
+    <section class="slide" data-notes="[55 sec] 스멜에서 바로 대형 리팩토링으로 뛰지 않는 흐름을 남깁니다. 관찰, 질문, 안전망, 작은 이동 순서입니다.">
+      <span class="eyebrow a">Refactoring Flow</span>
+      <h2 class="a">스멜에서 작은 리팩토링까지</h2>
+      <div class="flow a">
+        <div class="step gold"><span class="num">01</span><h3>관찰</h3><p>어떤 스멜이 보이나</p></div>
+        <div class="step"><span class="num">02</span><h3>질문</h3><p>변경 비용이 왜 커졌나</p></div>
+        <div class="step success-card"><span class="num">03</span><h3>이동</h3><p>테스트로 보호하고 한 책임만 분리</p></div>
+      </div>
+    </section>
+
+    <section class="slide" data-notes="[1 min] 팀 리뷰에서 바로 쓸 수 있는 질문으로 마무리합니다. 스멜 이름보다 질문이 코드 리뷰 대화를 더 생산적으로 만듭니다.">
+      <span class="eyebrow a">Review Checklist</span>
+      <h2 class="a">리뷰에서 바로 묻는 질문</h2>
+      <ul class="checklist a">
+        <li>이 클래스는 몇 가지 이유로 바뀌는가?</li>
+        <li>같은 변경 때문에 여러 파일을 만지는가?</li>
+        <li>새 조건을 넣을 때 같은 분기를 반복 수정하는가?</li>
+        <li>테스트보다 외부 의존성 준비가 더 어려운가?</li>
+        <li>데이터를 가진 객체보다 남의 필드를 더 묻는가?</li>
+        <li>지금 추상화가 실제 변경 범위를 줄이는가?</li>
+      </ul>
+    </section>
+
+    <section class="slide" data-notes="[45 sec] 다섯 분류를 한 문장씩 다시 남깁니다. 스멜 이름을 외우는 것보다 다음 PR에서 위험 신호 하나를 더 빨리 찾는 것이 목표입니다.">
+      <span class="eyebrow a">Takeaway</span>
+      <h2 class="a">스멜은 다음 변경을 싸게 만드는 언어</h2>
+      <div class="quote a">
+        <p>문제 신호를 읽고<br>테스트로 보호하고<br>작은 책임부터 옮긴다.</p>
+      </div>
+      <p class="lead a">다음 PR에서 가장 먼저 맡아볼 냄새는 무엇인가?</p>
+    </section>
+  </main>
+
+  <div class="progress" id="progress"></div>
+  <div class="counter" id="counter"></div>
+  <div class="controls">
+    <button type="button" aria-label="Previous slide" onclick="goTo(current - 1)">&#8592;</button>
+    <button type="button" aria-label="Next slide" onclick="goTo(current + 1)">&#8594;</button>
+    <button type="button" aria-label="Toggle speaker notes" onclick="toggleNotes()">S</button>
+    <button type="button" aria-label="Toggle fullscreen" onclick="toggleFullscreen()">&#x26F6;</button>
+  </div>
+
+  <script>
+    const slides = [...document.querySelectorAll('.slide')];
+    let current = 0;
+
+    function goTo(index) {
+      if (index < 0 || index >= slides.length) {
+        return;
+      }
+
+      slides[current].classList.remove('active');
+      slides[index].classList.add('active');
+      current = index;
+      updateProgress();
+      updateCounter();
+      updateNotes();
+    }
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowRight' || event.key === ' ') {
+        event.preventDefault();
+        goTo(current + 1);
+      }
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        goTo(current - 1);
+      }
+
+      if (event.key.toLowerCase() === 'f') {
+        toggleFullscreen();
+      }
+
+      if (event.key.toLowerCase() === 's') {
+        toggleNotes();
+      }
+    });
+
+    let touchStartX = 0;
+
+    document.addEventListener('touchstart', (event) => {
+      touchStartX = event.touches[0].clientX;
+    });
+
+    document.addEventListener('touchend', (event) => {
+      const diff = touchStartX - event.changedTouches[0].clientX;
+
+      if (Math.abs(diff) > 50) {
+        diff > 0 ? goTo(current + 1) : goTo(current - 1);
+      }
+    });
+
+    function updateProgress() {
+      document.getElementById('progress').style.width = (current / (slides.length - 1) * 100) + '%';
+    }
+
+    function updateCounter() {
+      document.getElementById('counter').textContent = (current + 1) + ' / ' + slides.length;
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+        return;
+      }
+
+      document.exitFullscreen();
+    }
+
+    let notesWindow = null;
+
+    function toggleNotes() {
+      if (notesWindow && !notesWindow.closed) {
+        notesWindow.close();
+        notesWindow = null;
+        return;
+      }
+
+      notesWindow = window.open('', 'SpeakerNotes', 'width=520,height=420,top=80,left=80');
+
+      if (!notesWindow) {
+        return;
+      }
+
+      notesWindow.document.write(`<!DOCTYPE html><html><head><style>*{box-sizing:border-box;margin:0;padding:0}body{background:#1a1a1a;color:#e0e0e0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,sans-serif}.slide-num{margin-bottom:12px;color:#888;font:12px monospace}.label{margin-bottom:8px;color:#666;font-size:11px;letter-spacing:2px;text-transform:uppercase}.notes{color:#ccc;font-size:16px;line-height:1.8}</style></head><body><div class="slide-num" id="sn"></div><div class="label">Speaker Notes</div><div class="notes" id="nt"></div></body></html>`);
+      notesWindow.document.close();
+      updateNotes();
+    }
+
+    function updateNotes() {
+      if (!notesWindow || notesWindow.closed) {
+        return;
+      }
+
+      try {
+        notesWindow.document.getElementById('nt').textContent = slides[current].dataset.notes || '(No notes)';
+        notesWindow.document.getElementById('sn').textContent = 'Slide ' + (current + 1) + ' / ' + slides.length;
+      } catch (error) {
+        return;
+      }
+    }
+
+    updateProgress();
+    updateCounter();
+  </script>
+</body>
+</html>
