@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>테스트하기 쉬운 코드: SOLID와 레거시 리팩토링</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+  <style>
+    :root { --bg:#fff; --surface:#f4f5f7; --surface-2:#eef2f7; --line:#e0e3e8; --ink:#333; --muted:#666; --navy:#1e3a5f; --navy-2:#2c5282; --gold:#c8a45c; --danger:#9d3e45; --success:#376f54; --code:#1e2736; --accent:var(--gold); --shadow:0 22px 60px rgba(30,58,95,.13); }
+    * { box-sizing:border-box; } html,body { width:100%; height:100%; margin:0; }
+    body { overflow:hidden; color:var(--ink); background:linear-gradient(135deg,rgba(30,58,95,.08),transparent 34%),linear-gradient(315deg,rgba(200,164,92,.11),transparent 32%),#dfe5ec; font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    button { font:inherit; }
+    .deck { position:relative; width:min(100vw,calc(100vh * 16 / 9)); height:min(100vh,calc(100vw * 9 / 16)); margin:auto; top:50%; transform:translateY(-50%); overflow:hidden; background:var(--bg); box-shadow:var(--shadow); border:1px solid rgba(30,58,95,.12); }
+    .deck::before { content:""; position:absolute; inset:0; background:linear-gradient(90deg,rgba(30,58,95,.045) 1px,transparent 1px),linear-gradient(rgba(30,58,95,.035) 1px,transparent 1px); background-size:72px 72px; pointer-events:none; }
+    .slide { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:flex-start; text-align:left; padding:clamp(36px,5vw,72px); opacity:0; overflow-y:auto; pointer-events:none; transition:opacity .3s ease; }
+    .slide.active { opacity:1; pointer-events:auto; z-index:2; }
+    .slide.active .a { opacity:0; animation:fadeInUp .4s ease forwards; }
+    .a:nth-child(1){animation-delay:.05s}.a:nth-child(2){animation-delay:.1s}.a:nth-child(3){animation-delay:.15s}.a:nth-child(4){animation-delay:.2s}.a:nth-child(5){animation-delay:.25s}.a:nth-child(6){animation-delay:.3s}
+    @keyframes fadeInUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+    h1,h2,h3,p { margin-top:0; } h1 { max-width:1100px; margin-bottom:22px; color:var(--navy); font-size:clamp(40px,5vw,68px); line-height:1.04; letter-spacing:0; } h2 { margin-bottom:18px; color:var(--navy); font-size:clamp(28px,3.1vw,44px); line-height:1.12; letter-spacing:0; } h3 { margin-bottom:10px; color:var(--navy); font-size:clamp(17px,1.45vw,24px); line-height:1.25; letter-spacing:0; }
+    p,li { color:var(--ink); font-size:clamp(17px,1.55vw,25px); line-height:1.5; } strong { color:var(--navy); } ul,ol { margin:10px 0 0; padding-left:1.2em; } li+li { margin-top:8px; }
+    .eyebrow { display:inline-flex; align-items:center; gap:10px; color:var(--navy); font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0; } .eyebrow::before { width:42px; height:3px; content:""; background:var(--gold); }
+    .lead { max-width:930px; color:var(--muted); font-size:clamp(20px,2vw,30px); } .meta,.hint,.caption { color:var(--muted); font-size:clamp(13px,1vw,16px); }
+    .title-grid,.two-col,.compare,.grid,.flow,.metric-row,.split-code,.triad { width:100%; display:grid; gap:clamp(14px,1.7vw,24px); }
+    .title-grid { grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr); align-items:end; } .two-col,.compare,.split-code { grid-template-columns:repeat(2,minmax(0,1fr)); } .grid { grid-template-columns:repeat(3,minmax(0,1fr)); } .flow { grid-template-columns:repeat(4,minmax(0,1fr)); } .metric-row { grid-template-columns:repeat(4,minmax(0,1fr)); } .triad { grid-template-columns:repeat(5,minmax(0,1fr)); }
+    .card,.panel,.step,.metric,.quote,.principle,.code-card { border:1px solid var(--line); border-top:4px solid var(--navy); background:rgba(244,245,247,.94); padding:clamp(16px,1.6vw,24px); }
+    .gold { border-top-color:var(--gold)!important; } .danger-card { border-top-color:var(--danger)!important; } .success-card { border-top-color:var(--success)!important; }
+    .agenda { display:grid; width:100%; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 28px; padding:0; list-style:none; } .agenda li { display:flex; gap:16px; border-bottom:1px solid var(--line); padding:13px 0; } .agenda b,.num { color:var(--gold); font-family:"JetBrains Mono",monospace; font-size:18px; }
+    .tag { display:inline-flex; border:1px solid rgba(30,58,95,.18); background:rgba(30,58,95,.07); padding:6px 11px; color:var(--navy); font-size:14px; font-weight:700; }
+    .title-slide::after,.section::after { position:absolute; right:clamp(36px,5vw,72px); bottom:clamp(36px,5vw,72px); width:min(26vw,300px); height:min(26vw,300px); border:1px solid rgba(30,58,95,.16); content:""; background:linear-gradient(135deg,rgba(30,58,95,.12),transparent 60%),radial-gradient(circle at 70% 25%,rgba(200,164,92,.35),transparent 34%); }
+    .section .chapter { color:rgba(30,58,95,.11); font-size:clamp(92px,13vw,190px); font-weight:800; line-height:.8; }
+    .principle { min-height:172px; } .principle b { display:block; margin-bottom:10px; color:var(--gold); font-size:clamp(28px,2.6vw,44px); line-height:1; } .principle p,.step p,.card p,.metric p { margin-bottom:0; }
+    .step { position:relative; min-height:180px; } .step:not(:last-child)::after { position:absolute; right:-20px; top:50%; width:20px; content:">"; color:var(--gold); font-family:"JetBrains Mono",monospace; font-size:24px; transform:translateY(-50%); }
+    .metric b { display:block; color:var(--navy); font-size:clamp(28px,2.7vw,48px); line-height:1; } .metric span { color:var(--muted); font-size:16px; }
+    .quote { border-left:8px solid var(--gold); border-top-width:1px; max-width:1100px; padding:clamp(22px,2.5vw,38px); } .quote p { margin-bottom:8px; color:var(--navy); font-size:clamp(27px,2.8vw,46px); line-height:1.2; }
+    table { width:100%; border-collapse:collapse; background:rgba(255,255,255,.84); font-size:clamp(15px,1.2vw,20px); } th,td { border-bottom:1px solid var(--line); padding:13px 14px; text-align:left; vertical-align:top; } th { color:var(--navy); background:var(--surface-2); }
+    .code-card { background:var(--code); border-top-color:var(--gold); padding:0; overflow:hidden; } .code-label { display:flex; justify-content:space-between; padding:12px 18px; color:rgba(255,255,255,.74); background:rgba(255,255,255,.06); font-family:"JetBrains Mono",monospace; font-size:13px; } pre[class*="language-"] { width:100%; max-height:520px; margin:0; border:0; border-top:4px solid var(--gold); border-radius:0; background:var(--code); padding:clamp(16px,1.6vw,24px); font-size:clamp(12px,1.02vw,16px); line-height:1.45; white-space:pre-wrap; } code[class*="language-"] { font-family:"JetBrains Mono",monospace; }
+    .axis { position:relative; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); width:100%; gap:20px; } .axis .card::before { content:""; display:block; width:100%; height:8px; margin-bottom:18px; background:linear-gradient(90deg,var(--danger),var(--gold),var(--success)); } .ladder { display:grid; width:min(100%,920px); gap:12px; } .ladder div { border-left:6px solid var(--gold); background:var(--surface); padding:14px 18px; color:var(--navy); font-size:clamp(17px,1.5vw,24px); } .ladder div:nth-child(2){margin-left:36px}.ladder div:nth-child(3){margin-left:72px}.ladder div:nth-child(4){margin-left:108px}
+    .controls { position:fixed; right:22px; bottom:18px; z-index:120; display:flex; gap:8px; align-items:center; } .controls button { width:38px; height:38px; border:1px solid rgba(30,58,95,.18); background:rgba(255,255,255,.88); color:var(--navy); cursor:pointer; }
+    .progress { position:fixed; top:0; left:0; height:3px; background:var(--accent,#0066cc); z-index:100; transition:width .3s ease; } .counter { position:fixed; bottom:29px; right:82px; font-size:12px; color:rgba(30,58,95,.58); font-family:"JetBrains Mono",monospace; z-index:100; } .kbd { border:1px solid var(--line); background:rgba(255,255,255,.76); padding:4px 7px; color:var(--navy); font-family:"JetBrains Mono",monospace; font-size:13px; }
+    @media(max-width:900px){.slide{padding:28px}.title-grid,.two-col,.compare,.split-code,.grid,.flow,.metric-row,.triad,.agenda,.axis{grid-template-columns:1fr}.step:not(:last-child)::after{display:none}.title-slide::after,.section::after{opacity:.35}}
+    @media print { body{background:#fff;overflow:visible}.deck{width:100vw;height:100vh;top:0;transform:none;box-shadow:none;border:0;overflow:visible}.progress,.counter,.controls,nav,button,[class*="hint"],[class*="btn"]{display:none!important}.slide{page-break-after:always;position:relative!important;opacity:1!important;display:flex!important;width:100vw;height:100vh}@page{size:landscape;margin:0} }
+  </style>
+</head>
+<body>
+  <main class="deck">
+    <section class="slide active" data-notes="[1 min] 이전 세션에서 테스트가 왜 필요한지 봤습니다. 이번 세션은 테스트를 쓰기 쉬운 구조가 왜 좋은 코드와 만나는지 연결합니다.">
+      <div class="title-grid">
+        <div>
+          <span class="eyebrow a">Code Quality Seminar 03</span>
+          <h1 class="a">테스트하기 쉬운 코드</h1>
+          <p class="lead a">SOLID와 레거시 리팩토링으로<br>변경 비용을 낮추는 기준</p>
+          <p class="meta a">사내 세미나 · 구조가 테스트를 돕는 순간</p>
+        </div>
+        <div class="panel a">
+          <span class="tag">SOLID</span>
+          <h3>오늘의 연결</h3>
+          <p>테스트가 어려운 이유는 도구보다 구조일 수 있다.</p>
+          <p class="hint"><span class="kbd">Space</span> next · <span class="kbd">S</span> notes</p>
+        </div>
+      </div>
+    </section>
+    <section class="slide" data-notes="[40 sec] 전체 흐름을 먼저 공유합니다. 테스트 난이도에서 출발해 SOLID 원칙과 레거시 적용 순서로 갑니다.">
+      <span class="eyebrow a">Agenda</span>
+      <h2 class="a">구조를 보는 눈 만들기</h2>
+      <ol class="agenda a">
+        <li><b>01</b><span>테스트하기 어려운 코드</span></li>
+        <li><b>02</b><span>응집도와 결합도</span></li>
+        <li><b>03</b><span>SOLID 핵심 원칙</span></li>
+        <li><b>04</b><span>레거시 적용 순서</span></li>
+        <li><b>05</b><span>개선 예제</span></li>
+        <li><b>06</b><span>팀 리뷰 기준</span></li>
+      </ol>
+    </section>
+    <section class="slide" data-notes="[25 sec] 문제 제기 슬라이드입니다. 테스트가 어려운 코드와 변경이 어려운 코드는 상당히 겹칩니다.">
+      <span class="chapter a">01</span>
+      <h2 class="a">테스트하기 어렵다면<br>변경도 어렵다</h2>
+      <p class="lead a">준비해야 할 주변 조건이 로직보다 많아지는 순간.</p>
+    </section>
+    <section class="slide" data-notes="[1 min] 흔한 레거시 신호를 보여줍니다. static, 직접 생성, 비대한 서비스, 긴 분기는 테스트 준비를 늘립니다.">
+      <span class="eyebrow a">Smells</span>
+      <h2 class="a">테스트를 막는 구조적 신호</h2>
+      <div class="grid a">
+        <div class="card danger-card"><h3>책임 혼합</h3><p>계산, 저장, 연동, 알림이 한 클래스</p></div>
+        <div class="card"><h3>고정 의존</h3><p>static 호출과 메서드 내부 new</p></div>
+        <div class="card"><h3>분기 폭증</h3><p>조건이 늘수록 변경 범위 확대</p></div>
+      </div>
+	  <br>
+      <div class="quote a"><p>테스트 준비가 본문보다 길면<br>구조를 먼저 의심한다.</p></div>
+    </section>
+    <section class="slide" data-notes="[55 sec] 응집도와 결합도를 테스트 관점으로 번역합니다. 하나만 실행할 수 있고 의존성을 교체할 수 있느냐가 핵심입니다.">
+      <span class="eyebrow a">Structure</span>
+      <h2 class="a">높은 응집도, 낮은 결합도</h2>
+      <div class="axis a">
+        <div class="card success-card">
+          <h3>응집도</h3>
+          <p>하나의 모듈이 하나의 목적에 집중</p>
+          <ul><li>테스트 대상이 선명</li><li>실패 원인이 좁음</li></ul>
+        </div>
+        <div class="card gold">
+          <h3>결합도</h3>
+          <p>주변 환경을 얼마나 끌고 들어오는가</p>
+          <ul><li>대체 가능한 의존성</li><li>작은 설정 비용</li></ul>
+        </div>
+      </div>
+    </section>
+    <section class="slide" data-notes="[25 sec] SOLID를 원칙 이름 암기가 아니라 변경과 테스트의 기준으로 소개합니다.">
+      <span class="chapter a">02</span>
+      <h2 class="a">SOLID는<br>변경 압력을 나누는 기준</h2>
+      <p class="lead a">완벽한 설계보다, 수정 이유와 의존성을 먼저 본다.</p>
+    </section>
+    <section class="slide" data-notes="[55 sec] 다섯 원칙을 한 장에 맵으로 놓습니다. 오늘 특히 체감이 큰 SRP, OCP, DIP를 자세히 봅니다.">
+      <span class="eyebrow a">SOLID Map</span>
+      <h2 class="a">다섯 글자, 다섯 질문</h2>
+      <div class="triad a">
+        <div class="principle"><b>S</b><p>책임이 몇 개인가</p></div>
+        <div class="principle"><b>O</b><p>확장 때 기존 코드를 얼마나 건드리는가</p></div>
+        <div class="principle"><b>L</b><p>하위 타입이 약속을 지키는가</p></div>
+        <div class="principle"><b>I</b><p>필요 없는 메서드까지 의존하는가</p></div>
+        <div class="principle"><b>D</b><p>구체 구현을 교체할 수 있는가</p></div>
+      </div>
+    </section>
+    <section class="slide" data-notes="[1 min] SRP를 테스트의 범위와 연결합니다. 주문 서비스가 조율만 하고 계산과 외부 연동은 별도 책임으로 빠지는 모습을 보여줍니다.">
+      <span class="eyebrow a">Single Responsibility Principle</span>
+      <h2 class="a">책임이 많으면 테스트도 무거워진다</h2>
+      <div class="split-code a">
+        <div class="card danger-card">
+          <h3>비대한 Service</h3>
+          <ul>
+            <li>가격 계산</li>
+            <li>재고 검증</li>
+            <li>결제 API</li>
+            <li>저장과 알림</li>
+          </ul>
+        </div>
+        <div class="card success-card">
+          <h3>책임 분리</h3>
+          <ul>
+            <li>`PriceCalculator`는 계산</li>
+            <li>`StockService`는 재고</li>
+            <li>`PaymentClient`는 외부 경계</li>
+            <li>`OrderService`는 흐름 조율</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+    <section class="slide" data-notes="[1 min] OCP는 if 제거 자체가 목적이 아니라 자주 바뀌는 정책을 분리하는 원칙이라고 설명합니다.">
+      <span class="eyebrow a">Open-Closed Principle</span>
+      <h2 class="a">조건이 늘 때 기존 로직을 덜 건드리기</h2>
+      <div class="flow a">
+        <div class="step danger-card"><span class="num">Before</span><h3>if / switch</h3><p>등급 추가마다 메서드 수정</p></div>
+        <div class="step gold"><span class="num">Role</span><h3>Policy</h3><p>`DiscountPolicy` 추출</p></div>
+        <div class="step"><span class="num">Extend</span><h3>New Class</h3><p>새 정책 구현체 추가</p></div>
+        <div class="step success-card"><span class="num">Test</span><h3>Focused</h3><p>새 정책 테스트 집중</p></div>
+      </div>
+    </section>
+    <section class="slide" data-notes="[55 sec] LSP와 ISP는 한 장씩 짧고 실무적인 질문으로 처리합니다. 상속 계약과 비대한 인터페이스가 테스트 복잡도를 키웁니다.">
+      <span class="eyebrow a">Liskov Substitution Principle + Interface Segregation Principle</span>
+      <h2 class="a">상속 계약과 인터페이스 크기</h2>
+      <div class="compare a">
+        <div class="card">
+          <h3>LSP</h3>
+          <p>부모 타입으로 기대한 동작을 자식이 깨지 않는가?</p>
+          <ul><li>`UnsupportedOperationException` 남발</li><li>재사용만 위한 상속 경계</li></ul>
+        </div>
+        <div class="card gold">
+          <h3>ISP</h3>
+          <p>조회만 필요한데 거대한 Manager 전체를 Mock 하는가?</p>
+          <ul><li>역할별 Reader / Writer</li><li>작은 테스트 의존성</li></ul>
+        </div>
+      </div>
+    </section>
+    <section class="slide" data-notes="[1 min] DIP가 가장 체감이 큰 원칙입니다. 직접 new를 하면 Mock이 들어갈 틈이 없고 주입받으면 테스트가 단순해집니다.">
+      <span class="eyebrow a">Dependency Inversion Principle</span>
+      <h2 class="a">직접 생성하면 대체할 틈이 없다</h2>
+      <div class="split-code a">
+        <div class="code-card">
+          <div class="code-label"><span>Before.java</span><span>고정</span></div>
+          <pre class="language-java"><code class="language-java">public void order(OrderRequest request) {
+    PaymentClient client = new PaymentClient();
+    client.pay(request.getAmount());
+}</code></pre>
+        </div>
+        <div class="code-card">
+          <div class="code-label"><span>After.java</span><span>교체 가능</span></div>
+          <pre class="language-java"><code class="language-java">private final PaymentProcessor processor;
+
+public void order(OrderRequest request) {
+    processor.pay(request.getAmount());
+}</code></pre>
+        </div>
+      </div>
+    </section>
+    <section class="slide" data-notes="[45 sec] DIP와 Mock을 직접 연결합니다. 주입 가능한 경계가 있으면 Mockito로 제어할 수 있고 없으면 PowerMock 같은 우회가 필요해집니다.">
+      <span class="eyebrow a">Testing Link</span>
+      <h2 class="a">Mock이 쉬운 구조는 교체가 쉬운 구조</h2>
+      <div class="metric-row a">
+        <div class="metric gold"><b>DB</b><span>Repository</span></div>
+        <div class="metric"><b>API</b><span>Client</span></div>
+        <div class="metric"><b>Time</b><span>Provider</span></div>
+        <div class="metric"><b>Static</b><span>Wrapper</span></div>
+      </div>
+    </section>
+    <section class="slide" data-notes="[25 sec] 원칙을 레거시에 적용하는 순서로 전환합니다. 큰 개편이 아니라 작은 안전한 분리입니다.">
+      <span class="chapter a">03</span>
+      <h2 class="a">레거시는<br>작게 분리하며 보호한다</h2>
+      <p class="lead a">바꾸는 코드 주변부터 테스트 가능한 면을 만든다.</p>
+    </section>
+    <section class="slide" data-notes="[1 min] 추천 순서를 보여줍니다. 계산부터 분리하고 외부 의존성을 경계로 밀어냅니다.">
+      <span class="eyebrow a">Legacy Steps</span>
+      <h2 class="a">SOLID를 적용하는 현실적인 순서</h2>
+      <div class="ladder a">
+        <div>변경하는 코드 주변에서 시작</div>
+        <div>계산과 판단 로직부터 추출</div>
+        <div>시간, DB, API 의존성을 경계로 이동</div>
+        <div>신규 코드는 새 기준으로 쌓기</div>
+      </div>
+    </section>
+    <section class="slide" data-notes="[1 min] private와 static은 테스트 도구만의 문제가 아니라 책임과 의존성 문제로 설명합니다. 당장 wrapper를 두는 현실적인 방식도 제시합니다.">
+      <span class="eyebrow a">Legacy Tactics</span>
+      <h2 class="a">private / static을 만났을 때</h2>
+      <table class="a">
+        <thead><tr><th>상황</th><th>당장 가능한 대응</th><th>장기 방향</th></tr></thead>
+        <tbody>
+          <tr><td>복잡한 private 로직</td><td>검증하고 싶은 책임 확인</td><td>별도 클래스로 추출</td></tr>
+          <tr><td>static 외부 호출</td><td>Wrapper 또는 Adapter</td><td>주입 가능한 역할로 이동</td></tr>
+          <tr><td>메서드 내부 new</td><td>생성 위치 확인</td><td>DI 또는 Factory 경계</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section class="slide" data-notes="[1 min] 개선 예제를 짧게 요약합니다. before는 시간과 API와 저장이 붙어 있고 after는 조율자와 협력자 구분이 보입니다.">
+      <span class="eyebrow a">Example</span>
+      <h2 class="a">OrderService 개선 흐름</h2>
+      <div class="flow a">
+        <div class="step danger-card"><span class="num">01</span><h3>Before</h3><p>시간, DAO, 결제 생성이 한 메서드</p></div>
+        <div class="step gold"><span class="num">02</span><h3>Extract</h3><p>`DiscountCalculator` 분리</p></div>
+        <div class="step"><span class="num">03</span><h3>Boundary</h3><p>Repository / Provider / Processor</p></div>
+        <div class="step success-card"><span class="num">04</span><h3>Test</h3><p>핵심 경로를 Mock으로 검증</p></div>
+      </div>
+    </section>
+    <section class="slide" data-notes="[1 min] 리뷰 체크리스트를 남깁니다. 구조 개선은 세미나가 끝난 뒤 리뷰 질문으로 살아야 합니다.">
+      <span class="eyebrow a">Review</span>
+      <h2 class="a">리뷰에서 같이 물어볼 것</h2>
+      <div class="grid a">
+        <div class="card gold"><h3>책임</h3><p>이 클래스는 몇 가지 이유로 바뀌는가?</p></div>
+        <div class="card"><h3>의존성</h3><p>외부 세계를 테스트에서 대체할 수 있는가?</p></div>
+        <div class="card"><h3>확장</h3><p>새 조건이 오면 기존 코드를 얼마나 고치는가?</p></div>
+      </div>
+    </section>
+    <section class="slide" data-notes="[45 sec] 정리합니다. SOLID는 패턴보다 먼저 변경 압력을 읽는 기준이고, 테스트 가능성은 코드 품질의 신호라고 강조합니다.">
+      <span class="eyebrow a">Takeaway</span>
+      <h2 class="a">테스트 가능성은 품질 신호다</h2>
+      <div class="quote a"><p>변경하기 쉬운 코드와<br>테스트하기 쉬운 코드는 가까이 있다.</p></div>
+      <p class="lead a">다음 세션: 반복되는 변경 문제를 디자인 패턴으로 구조화하기.</p>
+    </section>
+  </main>
+  <div class="progress" id="progress"></div><div class="counter" id="counter"></div>
+  <div class="controls"><button type="button" aria-label="Previous slide" onclick="goTo(current - 1)">&#8592;</button><button type="button" aria-label="Next slide" onclick="goTo(current + 1)">&#8594;</button><button type="button" aria-label="Toggle speaker notes" onclick="toggleNotes()">S</button><button type="button" aria-label="Toggle fullscreen" onclick="toggleFullscreen()">&#x26F6;</button></div>
+  <script>
+    // Slide navigation
+    const slides = [...document.querySelectorAll('.slide')];
+    let current = 0;
+    function goTo(index) { if (index < 0 || index >= slides.length) return; slides[current].classList.remove('active'); slides[index].classList.add('active'); current = index; updateProgress(); updateCounter(); updateNotes(); }
+    document.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); goTo(current + 1); } if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(current - 1); } if (e.key.toLowerCase() === 'f') toggleFullscreen(); if (e.key.toLowerCase() === 's') toggleNotes(); });
+    // Touch/swipe
+    let touchStartX = 0;
+    document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+    document.addEventListener('touchend', (e) => { const diff = touchStartX - e.changedTouches[0].clientX; if (Math.abs(diff) > 50) diff > 0 ? goTo(current + 1) : goTo(current - 1); });
+    function updateProgress() { document.getElementById('progress').style.width = (current / (slides.length - 1) * 100) + '%'; }
+    function updateCounter() { document.getElementById('counter').textContent = (current + 1) + ' / ' + slides.length; }
+    function toggleFullscreen() { if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); } else { document.exitFullscreen(); } }
+    let notesWindow = null;
+    function toggleNotes() { if (notesWindow && !notesWindow.closed) { notesWindow.close(); notesWindow = null; return; } notesWindow = window.open('', 'SpeakerNotes', 'width=520,height=420,top=80,left=80'); if (!notesWindow) return; notesWindow.document.write(`<!DOCTYPE html><html><head><style>* { margin: 0; padding: 0; box-sizing: border-box; } body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #1a1a1a; color: #e0e0e0; padding: 24px; } .slide-num { font-size: 12px; color: #888; margin-bottom: 12px; font-family: monospace; } .label { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #666; margin-bottom: 8px; } .notes { font-size: 16px; line-height: 1.8; color: #ccc; }</style></head><body><div class="slide-num" id="sn"></div><div class="label">Speaker Notes</div><div class="notes" id="nt"></div></body></html>`); notesWindow.document.close(); updateNotes(); }
+    function updateNotes() { if (!notesWindow || notesWindow.closed) return; try { const note = slides[current].dataset.notes || '(No notes)'; notesWindow.document.getElementById('nt').textContent = note; notesWindow.document.getElementById('sn').textContent = 'Slide ' + (current + 1) + ' / ' + slides.length; } catch(e) {} }
+    updateProgress(); updateCounter();
+  </script>
+</body>
+</html>
